@@ -37,3 +37,39 @@ VALUES
 INSERT INTO Autos (AutoID, MarcaID, Modelo, Anio, Precio, Stock)
 VALUES
     (3, 1, 'Accord', 2022, 27000.00, 12);
+
+CREATE TABLE Ventas (
+    VentaID NUMERIC,
+    ClienteID NUMERIC,
+    AutoID NUMERIC,
+    Precio DECIMAL(10, 2)
+);
+
+-- Insertar datos en la tabla Ventas
+INSERT INTO Ventas (VentaID, ClienteID, AutoID, Precio)
+VALUES
+    (1, 1, 1, 25000.00);
+
+INSERT INTO Ventas (VentaID, ClienteID, AutoID, Precio)
+VALUES
+    (2, 2, 2, 28000.00);
+
+INSERT INTO Ventas (VentaID, ClienteID, AutoID, Precio)
+VALUES
+    (3, 3, 3, 27000.00);
+    
+SELECT * FROM ventas;
+
+SELECT * FROM clientes;
+
+INSERT INTO Clientes (ClienteID, Nombre, Apellido, Direccion, Telefono)
+VALUES
+    (1, 'Juan', 'Perez', 'Calle 123, Ciudad', '555-1234');
+
+INSERT INTO Clientes (ClienteID, Nombre, Apellido, Direccion, Telefono)
+VALUES
+    (2, 'Maria', 'Gomez', 'Avenida 456, Ciudad', '555-5678');
+
+INSERT INTO Clientes (ClienteID, Nombre, Apellido, Direccion, Telefono)
+VALUES
+    (3, 'Carlos', 'Rodriguez', 'Plaza 789, Ciudad', '555-9012');
