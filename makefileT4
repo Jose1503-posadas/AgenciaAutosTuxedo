@@ -3,8 +3,6 @@ PROC = $(ORACLE_HOME)/bin/proc
 PROC_CFLAGS = code=ANSI_C
 PROCINCLUDES = include=include include=/usr/include include=/usr/lib/gcc/x86_64-redhat-linux/4.8.2/include include=/usr/include/linux sys_include=/usr/include include=../inc
 PROCFLAGS = $(PROC_CFLAGS) $(PROCINCLUDES)
-
-# Directorios/Rutas
 BIN = ../bin
 OBJ = ../obj
 SRC = ../src
@@ -12,10 +10,10 @@ INC = ../inc
 FML = ../fml
 CC = gcc
 
-# Generacion de Aplicacion
+# Generación de la Aplicación
 all: campos_fml precompila srvAgenciaAutos_T4 clienteT4
 
-# Compilacion de Campos FML
+# Compilación de Campos FML
 campos_fml: $(FML)/bib_T4.fml
 	mkfldhdr32 $(FML)/bib_T4.fml
 	mv bib_T4.fml.h $(INC)
@@ -25,23 +23,23 @@ precompila:
 	@echo "Precompilando ..."
 	$(PROC) $(PROCFLAGS) include=/usr/include/c++/4.8.2/x86_64-redhat-linux include=$(ORACLE_HOME)/precomp/public include=$(ORACLE_HOME)/rdbms/public include=../inc include=$(TUXDIR)/include $(SRC)/srvAgenciaAutos_T4.pc
 
-# Generacion de Servidores
+# Generación de Servidores
 srvAgenciaAutos_T4: $(OBJ)/srvAgenciaAutos_T4.o
 	@echo Compilando el servidor srvAgenciaAutos_T4
 	buildserver -v -f $(OBJ)/srvAgenciaAutos_T4.o \
 		-f "-I$(INC)" \
 		-l "-L$(ORACLE_HOME)/lib" \
 		-o "$(BIN)/srvAgenciaAutos_T4 -lclntsh" \
-		-s SELECT_AgenciaAutos, INSERT_AgenciaAutos
+		-s SELECT_AgenciaAutos,INSERT_AgenciaAutos,UPDATE_AgenciaAutos,DELETE_AgenciaAutos
 
-# Generacion de Clientes
+# Generación de Clientes
 clienteT4: $(OBJ)/clienteT4.o
 	@echo Compilando el cliente cliente T4
 	buildclient -f $(OBJ)/clienteT4.o -o $(BIN)/clienteT4
 
-# Generacion de Ficheros Objeto
+# Generación de Ficheros Objeto
 $(OBJ)/srvAgenciaAutos_T4.o: $(SRC)/srvAgenciaAutos_T4.c
-	@echo "Genera objetos ..."
+	@echo "Generando objetos ..."
 	$(CC) -c -I/usr/include/c++/4.8.2/x86_64-redhat-linux \
 		-I$(ORACLE_HOME)/precomp/public -I$(ORACLE_HOME)/rdbms/public -I../inc \
 		-I$(TUXDIR)/include -L$(ORACLE_HOME)/lib -L$(TUXDIR)/lib $(SRC)/srvAgenciaAutos_T4.c -o \
@@ -51,9 +49,6 @@ $(OBJ)/clienteT4.o: $(SRC)/clienteT4.c
 	$(CC) -c -I../inc -I$(TUXDIR)/include $(SRC)/clienteT4.c -o \
 		$(OBJ)/clienteT4.o
 
-# Borrado
+# Limpieza
 cleanAll:
 	rm $(OBJ)/*.o
-
-cleanElem:
-	rm $(OBJ)/srvAgenciaAutos_T4.o $(OBJ)/clienteT4.o
