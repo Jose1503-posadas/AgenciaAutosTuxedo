@@ -1,0 +1,13 @@
+#name	number	type	flag	comment
+OUTPUT	5	string	-	-
+AUTOID	10	long	-	- ID automovil
+MARCAID	20	long	-	- marca del automovil
+MODELO	30	string	-	- modelo del automovil
+ANIO	40	string	-	- anio del automovil
+PRECIO	50	double	-	- precio del automovil
+STOCK	60	long	-	- stock del automovil
+NOMBRE	70	string	-	- nombre de la marca
+PAIS	80	string	-	- Pais de la marca
+CLIENTE	90	long	-	- ID cliente
+DIRECC	100	string	-	- DIreccion nueva
+VENTA	110	long	-	- ID VENTA
