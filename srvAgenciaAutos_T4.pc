@@ -1,0 +1,399 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <atmi.h>
+#include <userlog.h>
+#include <fml32.h>
+#include <tx.h>
+
+#include "bib_T4.fml.h"
+
+#include <sqlca.h>
+#include <sqlda.h>
+#include <oraca.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+EXEC SQL BEGIN DECLARE SECTION;
+EXEC SQL DECLARE ORACLE2 DATABASE;
+EXEC SQL END DECLARE SECTION;
+
+typedef struct{
+    char usuario_DB[50];
+    char password_DB[50];
+    char name_DB[50];
+}paramConexion;
+
+//conectando a la base de datos
+int conectando_aBD(paramConexion *spA_paramCon){
+	 int iRetValue = 0;
+	 EXEC SQL BEGIN DECLARE SECTION;
+	    char zaO_usuario_[50];
+	    char zaO_password[50];
+	    char zaO_dbnameBD[50];
+	 EXEC SQL END DECLARE SECTION;
+	 strcpy(zaO_usuario_, spA_paramCon->usuario_DB);
+	 strcpy(zaO_password, spA_paramCon->password_DB);
+	 strcpy(zaO_dbnameBD, spA_paramCon->name_DB);
+	 EXEC SQL WHENEVER SQLERROR DO iRetValue = sqlError("Error conexion");
+	 EXEC SQL CONNECT :zaO_usuario_ IDENTIFIED by:zaO_password 
+	 AT ORACLE2 USING :zaO_dbnameBD;
+	 return iRetValue;
+}
+
+//cierra la conexion de la base de datos
+void cierraConexion(){
+	EXEC SQL WHENEVER SQLERROR CONTINUE;
+	if( !sqlca.sqlcode){
+		EXEC SQL AT ORACLE2 COMMIT WORK RELEASE;
+	}else{
+		EXEC SQL AT ORACLE2 ROLLBACK RELEASE;
+	}
+}
+
+//errores sql
+int sqlError(const char*zpA_cadError){
+	char zaL_errorOra[512];
+	long unsigned int ivL_longCadn;
+	long unsigned int ivL_longMens;
+	sqlglm(zaL_errorOra, &ivL_longCadn, &ivL_longMens);
+	printf("ERROR DE SISTEMA, ocurrioun error en BD \n");
+	printf("Error encontrado: %s \n", zpA_cadError);
+	printf("Error de Oracle: %s \n", zaL_errorOra);
+	return-1;
+}
+
+
+
+char *ajustaCampos(char zaA_Campo[2000]) {
+    int ivL_obtenTam;
+    int ivL_contIter;
+    int ivL_siEspacs;
+    int ivL_noEspacs;
+
+    ivL_obtenTam = strlen(zaA_Campo);
+    ivL_contIter = 0;
+    ivL_siEspacs = 0;
+    ivL_noEspacs = 0;
+
+    for (ivL_contIter = 0; ivL_contIter < ivL_obtenTam && zaA_Campo[ivL_contIter] == ' '; ivL_contIter++) {
+        ivL_siEspacs++;
+    }
+
+    if (ivL_siEspacs == ivL_obtenTam) {
+        return (char *)"\0";
+    } else {
+        if (ivL_siEspacs < ivL_obtenTam) {
+            for (ivL_contIter = ivL_obtenTam - 1; ivL_contIter >= 0 && zaA_Campo[ivL_contIter] == ' '; ivL_contIter--) {
+                ivL_noEspacs++;
+            }
+            zaA_Campo[ivL_obtenTam - ivL_noEspacs] = '\0';
+            return (char *)zaA_Campo;
+        }
+    }
+}
+
+
+int tpsvrinit(int argc, char *argv[]){
+   int iRetValue = 0;
+   paramConexion svL_paramCon;
+
+   /* Se inicializan acciones en esta funcion */
+   userlog ("Iniciando srvAgenciaAutos");
+   return(iRetValue);
+}
+
+void SELECT_AgenciaAutos(TPSVCINFO *rqst) {
+    FLDLEN32 flen;
+    paramConexion svL_paramCon;
+    char msgbuf[256];
+    int iRetValue = 0;
+
+    EXEC SQL BEGIN DECLARE SECTION;
+	    int t_marcaID;
+	    char t_nombre[50];
+	    char t_pais[50];
+    EXEC SQL END DECLARE SECTION;
+
+    FBFR32* fbfr = (FBFR32*)rqst->data;
+
+    strcpy(svL_paramCon.usuario_DB, "system");
+    strcpy(svL_paramCon.password_DB, "21635085Jpg");
+    strcpy(svL_paramCon.name_DB, "JAPG");
+    t_marcaID = 0;
+    memset(t_nombre, 0x00, sizeof(t_nombre));
+    memset(t_pais, 0x00, sizeof(t_pais));
+
+    userlog("Servicio SELECT_AgenciaAUtos Invocado");
+
+    /* Obtenemos los campos */
+    if (Fget32(fbfr, PAIS, 0, t_pais, 0) < 0) {
+        userlog("Error Fget32(PAIS): %s", Fstrerror32(Ferror32));
+        tpreturn(TPFAIL, 0, rqst->data, 0L, 0);
+    }
+    userlog("Buscar Pais: [%s]", t_pais);
+
+    Finit32(fbfr, Fsizeof32(fbfr));
+
+    userlog("Conectando a la BD");
+    conectando_aBD(&svL_paramCon);
+
+    /* Declaramos y Abrimos Cursor */
+    EXEC SQL AT ORACLE2 DECLARE cu_Marca CURSOR FOR 
+        SELECT MarcaID, Nombre, PaisOrigen
+        FROM Marcas
+        WHERE PaisOrigen = :t_pais;
+
+
+    if (sqlca.sqlcode != 0) {
+        userlog("Error Declare Cursor: %d-%s", sqlca.sqlcode, sqlca.sqlerrm.sqlerrmc);
+        tpreturn(TPFAIL, 0, rqst->data, 0L, 0);
+    }
+
+    EXEC SQL AT ORACLE2 OPEN cu_Marca;
+    if (sqlca.sqlcode != 0) {
+        userlog("Error Open Cursor: %d-%s", sqlca.sqlcode, sqlca.sqlerrm.sqlerrmc);
+        tpreturn(TPFAIL, 0, rqst->data, 0L, 0);
+    }
+
+    EXEC SQL AT ORACLE2 FETCH cu_Marca INTO :t_marcaID, :t_nombre, :t_pais;
+
+
+    while (sqlca.sqlcode == 0) {
+        Fadd32(fbfr, MARCAID, (char*)&t_marcaID, 0);
+        userlog(" MarcaID: [%d]", t_marcaID);
+        Fadd32(fbfr, NOMBRE, ajustaCampos(t_nombre), 0);
+        userlog(" Nombre : [%s]", ajustaCampos(t_nombre));
+        Fadd32(fbfr, PAIS, ajustaCampos(t_pais), 0);
+        userlog(" Pais Origen: [%s]", ajustaCampos(t_pais));
+        EXEC SQL AT ORACLE2 FETCH cu_Marca INTO :t_marcaID, :t_nombre, :t_pais;
+    }
+
+    EXEC SQL CLOSE cu_Marca;
+    userlog("Select exitoso");
+    // Fchg32(fbfr, OUTPUT, 0, msgbuf, 0);
+    cierraConexion();
+    tpreturn(TPSUCCESS, 0, (char *)fbfr, sizeof(fbfr), 0);
+}
+
+void INSERT_AgenciaAutos(TPSVCINFO *rqst){
+    FLDLEN32 flen;
+    paramConexion svL_paramCon;
+    char msgbuf[256];
+    int iRetValue = 0;
+
+    EXEC SQL BEGIN DECLARE SECTION;
+    int a_autoID;
+    int a_marcaID;
+    char a_modelo[51];
+    char a_anio[10];
+    double a_precio;
+    int a_stock;
+    EXEC SQL END DECLARE SECTION;
+
+    FBFR32* fbfr = (FBFR32*)rqst->data;
+
+    strcpy(svL_paramCon.usuario_DB, "system");
+    strcpy(svL_paramCon.password_DB, "21635085Jpg");
+    strcpy(svL_paramCon.name_DB, "JAPG");
+
+    memset(&a_autoID, 0x00, sizeof(a_autoID));
+    memset(&a_marcaID, 0x00, sizeof(a_marcaID));
+    memset(a_modelo, 0x00, sizeof(a_modelo));
+    memset(a_anio, 0x00, sizeof(a_anio));
+    memset(&a_precio, 0x00, sizeof(a_precio));
+    memset(&a_stock, 0x00, sizeof(a_stock));
+
+    userlog("Servicio INSERT_AgenciaAutos Invocado");
+
+    if (Fget32(fbfr, AUTOID, 0, (char*)&a_autoID, 0) < 0) {
+        userlog("Error Fget32(AUTOID): %s", Fstrerror32(Ferror32));
+        tpreturn(TPFAIL, 0, rqst->data, 0L, 0);
+    }
+    userlog(" AutoID: [%d]", a_autoID);
+
+    if (Fget32(fbfr, MARCAID, 0, (char*)&a_marcaID, 0) < 0) {
+        userlog("Error Fget32(MARCAID): %s", Fstrerror32(Ferror32));
+        tpreturn(TPFAIL, 0, rqst->data, 0L, 0);
+    }
+    userlog(" MarcaID : [%d]", a_marcaID);
+
+    if (Fget32(fbfr, MODELO, 0, a_modelo, 0) < 0) {
+        userlog("Error Fget32(MODELO): %s", Fstrerror32(Ferror32));
+        tpreturn(TPFAIL, 0, rqst->data, 0L, 0);
+    }
+    userlog(" Modelo: [%s]", a_modelo);
+
+    if (Fget32(fbfr, ANIO, 0, a_anio, 0) < 0) {
+        userlog("Error Fget32(ANIO): %s", Fstrerror32(Ferror32));
+        tpreturn(TPFAIL, 0, rqst->data, 0L, 0);
+    }
+    userlog(" ANIO: [%s]", a_anio);
+
+    if (Fget32(fbfr, PRECIO, 0, (char*)&a_precio, 0) < 0) {
+        userlog("Error Fget32(PRECIO): %s", Fstrerror32(Ferror32));
+        tpreturn(TPFAIL, 0, rqst->data, 0L, 0);
+    }
+    userlog(" Precio: [%lf]", a_precio);
+    
+    if (Fget32(fbfr, STOCK, 0, (char*)&a_stock, 0) < 0) {
+        userlog("Error Fget32(STOCK): %s", Fstrerror32(Ferror32));
+        tpreturn(TPFAIL, 0, rqst->data, 0L, 0);
+    }
+    userlog(" Stock: [%d]", a_stock);
+
+    userlog("Conectando a la BD");
+    conectando_aBD(&svL_paramCon);
+
+    EXEC SQL AT ORACLE2
+    INSERT INTO Autos (autoID, marcaID, modelo, anio, precio, stock)
+    VALUES (:a_autoID, :a_marcaID, :a_modelo, :a_anio, :a_precio, :a_stock);
+
+    if (sqlca.sqlcode != 0) {
+        sprintf(msgbuf, "Fallo insert: sqlcode = %d(%s)\n", sqlca.sqlcode,sqlca.sqlerrm.sqlerrmc);
+        sqlError("Error al realizar Insert");
+        Fchg32(fbfr, OUTPUT, 0, msgbuf, 0);
+        cierraConexion();
+        tpreturn(TPFAIL, 0, rqst->data, 0L, 0);
+    }
+
+    strcpy(msgbuf, "Insert exitoso!");
+    userlog("Insert exitoso");
+    Fchg32(fbfr, OUTPUT, 0, msgbuf, 0);
+    cierraConexion();
+    tpreturn(TPSUCCESS, 0, rqst->data, strlen(rqst->data), 0);
+}
+
+void UPDATE_AgenciaAutos(TPSVCINFO *rqst) {
+    FLDLEN32 flen;
+    paramConexion svL_paramCon;
+    char msgbuf[256];
+    int iRetValue = 0;
+
+    EXEC SQL BEGIN DECLARE SECTION;
+    int a_clienteID;
+    char a_direccion[150];
+    char a_direccionnueva[150];
+    EXEC SQL END DECLARE SECTION;
+
+    FBFR32* fbfr = (FBFR32*)rqst->data;
+
+    strcpy(svL_paramCon.usuario_DB, "system");
+    strcpy(svL_paramCon.password_DB, "21635085Jpg");
+    strcpy(svL_paramCon.name_DB, "JAPG");
+
+    memset(&a_clienteID, 0x00, sizeof(a_clienteID));
+    memset(a_direccion, 0x00, sizeof(a_direccion));
+    memset(a_direccion, 0x00, sizeof(a_direccionnueva));
+
+    userlog("Servicio UPDATE_AgenciaAutos Invocado");
+
+    if (Fget32(fbfr, CLIENTE, 0, (char*)&a_clienteID, 0) < 0) {
+        userlog("Error Fget32(CLIENTE): %s", Fstrerror32(Ferror32));
+        tpreturn(TPFAIL, 0, rqst->data, 0L, 0);
+    }
+    userlog(" CLIENTE ID: [%d]", a_clienteID);
+
+    if (Fget32(fbfr, DIRECC, 0, (char*)&a_direccionnueva, 0) < 0) {
+        userlog("Error Fget32(DIRECC): %s", Fstrerror32(Ferror32));
+        tpreturn(TPFAIL, 0, rqst->data, 0L, 0);
+    }
+    userlog(" DIRECCION : [%s]", a_direccion);
+
+    userlog("Conectando a la BD");
+    conectando_aBD(&svL_paramCon);
+
+    // Declaración de cursor
+    EXEC SQL AT ORACLE2 DECLARE cu_Cliente CURSOR FOR
+        SELECT ClienteID, Direccion
+        FROM Clientes
+        WHERE ClienteID = :a_clienteID FOR UPDATE;
+
+    // Apertura del cursor
+    EXEC SQL AT ORACLE2 OPEN cu_Cliente;
+
+    // Fetch del cursor
+    EXEC SQL AT ORACLE2 FETCH cu_Cliente INTO :a_clienteID, :a_direccion;
+
+    // Realiza la actualización de datos
+    userlog("Antes de la actualización - ClienteID: %d, Direccion: %s", a_clienteID, a_direccion);
+    EXEC SQL AT ORACLE2 UPDATE Clientes SET Direccion = :a_direccionnueva WHERE ClienteID = :a_clienteID;
+    userlog("Despues de la actualizacion - ClienteID: %d, Direccion: %s", a_clienteID, a_direccionnueva);
+
+
+    // Cierre del cursor
+    EXEC SQL AT ORACLE2 CLOSE cu_Cliente;
+
+    if (sqlca.sqlcode != 0) {
+        sqlError("Error al realizar UPDATE");
+        cierraConexion();
+        tpreturn(TPFAIL, 0, rqst->data, 0L, 0);
+    }
+
+    strcpy(msgbuf, "UPDATE exitoso!");
+    userlog("UPDATE exitoso");
+    Fchg32(fbfr, OUTPUT, 0, msgbuf, 0);
+    cierraConexion();
+    tpreturn(TPSUCCESS, 0, rqst->data, strlen(rqst->data), 0);
+}
+
+void DELETE_AgenciaAutos(TPSVCINFO *rqst) {
+    FLDLEN32 flen;
+    paramConexion svL_paramCon;
+    char msgbuf[256];
+    int iRetValue = 0;
+
+    EXEC SQL BEGIN DECLARE SECTION;
+    int a_ventaID;
+    EXEC SQL END DECLARE SECTION;
+
+    FBFR32* fbfr = (FBFR32*)rqst->data;
+
+    strcpy(svL_paramCon.usuario_DB, "system");
+    strcpy(svL_paramCon.password_DB, "21635085Jpg");
+    strcpy(svL_paramCon.name_DB, "JAPG");
+
+    memset(&a_ventaID, 0x00, sizeof(a_ventaID));
+
+    userlog("Servicio DELETE_AgenciaAutos Invocado");
+
+    if (Fget32(fbfr, VENTA, 0, (char*)&a_ventaID, 0) < 0) {
+        userlog("Error Fget32(VENTA): %s", Fstrerror32(Ferror32));
+        tpreturn(TPFAIL, 0, rqst->data, 0L, 0);
+    }
+    userlog(" VentaID: [%d]", a_ventaID);
+
+    userlog("Conectando a la BD");
+    conectando_aBD(&svL_paramCon);
+
+    // Declaración de cursor
+    EXEC SQL AT ORACLE2 DECLARE cu_Venta CURSOR FOR
+        SELECT VentaID
+        FROM Ventas
+        WHERE VentaID = :a_ventaID FOR UPDATE;
+
+    // Apertura del cursor
+    EXEC SQL AT ORACLE2 OPEN cu_Venta;
+
+    // Fetch del cursor
+    EXEC SQL AT ORACLE2 FETCH cu_Venta INTO :a_ventaID;
+
+    // Realiza la eliminación de datos
+    EXEC SQL AT ORACLE2 DELETE FROM Ventas WHERE VentaID = :a_ventaID;
+
+    // Cierre del cursor
+    EXEC SQL AT ORACLE2 CLOSE cu_Venta;
+
+    if (sqlca.sqlcode != 0) {
+        sqlError("Error al realizar DELETE");
+        cierraConexion();
+        tpreturn(TPFAIL, 0, rqst->data, 0L, 0);
+    }
+
+    strcpy(msgbuf, "DELETE exitoso!");
+    userlog("DELETE exitoso");
+    Fchg32(fbfr, OUTPUT, 0, msgbuf, 0);
+    cierraConexion();
+    tpreturn(TPSUCCESS, 0, rqst->data, strlen(rqst->data), 0);
+}
